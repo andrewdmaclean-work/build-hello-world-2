@@ -1,0 +1,70 @@
+name: Step 2, Assessment
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions: write-all
+
+jobs:
+  main:
+    if: github.head_ref == 'add-world'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check Solution
+        id: check
+        uses: andrewdmaclean-work/learn-action-check-file@main
+        with:
+          step: .github/steps/2-add-world.md
+          submission: hello-world.md
+          solution: .github/solutions/2-solution-prompt.md
+      - name: Handle Solution Result
+        uses: andrewdmaclean-work/learn-action-ai-assistant-comments@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          assessment: ${{ steps.check.outputs.assessment }}
+          reason: ${{ steps.check.outputs.reason }}
+      - name: Check Assessment
+        if: steps.check.outputs.assessment == 'correct'
+        run: echo "Your submission is correct. Continue to the next step."
+      - name: Fail Assessment
+        if: steps.check.outputs.assessment != 'correct'
+        run: |
+          echo "Your submission is missing something. Please review the comments."
+          exit 1
+      - name: Checkout AGAIN (if needed)
+        if: steps.check.outputs.assessment == 'correct'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge current PR
+        if: steps.check.outputs.assessment == 'correct'
+        run: |
+          echo "Authenticating gh CLI..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+          echo "Merging PR #${{ github.event.pull_request.number }}..."
+          gh pr merge ${{ github.event.pull_request.number }} --merge --admin --delete-branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Ensure we are on Step 2
+        if: steps.check.outputs.assessment == 'correct'
+        run: |
+          if [ "$(cat .github/steps/-step.txt)" != 2 ]
+          then
+            echo "Current step is not 2"
+            exit 0
+          fi
+      - name: Update to step X
+        if: steps.check.outputs.assessment == 'correct'
+        uses: skills/action-update-step@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          from_step: 2
+          to_step: X
+          branch_name: main

@@ -1,0 +1,87 @@
+name: Step 1, Assessment
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions: write-all
+
+jobs:
+  main:
+    name: Step 1 - Assessment
+    runs-on: ubuntu-latest
+    if: github.head_ref == 'hello-world'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Solution
+        id: check
+        uses: andrewdmaclean-work/learn-action-check-file@main
+        with:
+          step: ".github/steps/1-add-hello.md"
+          submission: "hello-world.md"
+          solution: ".github/solutions/1-solution-prompt.md"
+
+      - name: Handle Solution Result
+        uses: andrewdmaclean-work/learn-action-ai-assistant-comments@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          assessment: ${{ steps.check.outputs.assessment }}
+          reason: ${{ steps.check.outputs.reason }}
+
+      - name: Check Assessment
+        if: steps.check.outputs.assessment == 'correct'
+        run: echo "Your submission is correct. Continue to the next step."
+
+      - name: Fail Assessment
+        if: steps.check.outputs.assessment != 'correct'
+        run: |
+          echo "Your submission is missing something. Please review the comments."
+          exit 1
+
+      - name: Merge current PR and create new branch
+        if: steps.check.outputs.assessment == 'correct'
+        run: |
+          echo "Checking current step..."
+          if [ "$(cat .github/steps/-step.txt)" != 1 ]
+          then
+            echo "Current step is not 1"
+            exit 0
+          fi
+
+          echo "Authenticating gh CLI..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+          echo "Merging PR #${{ github.event.pull_request.number }}"
+          gh pr merge ${{ github.event.pull_request.number }} --merge --admin --delete-branch
+
+          echo "Creating new branch..."
+          BRANCH=add-world
+          git checkout -b $BRANCH
+
+          echo "Committing to new branch..."
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git commit --allow-empty --message="Create world branch"
+
+          echo "Pushing new branch..."
+          git push --set-upstream origin $BRANCH
+
+          echo "Switching back to main..."
+          git checkout main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update to step 1
+        if: steps.check.outputs.assessment == 'correct'
+        uses: skills/action-update-step@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          from_step: 1
+          to_step: 2
+          branch_name: add-world
