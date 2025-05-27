@@ -11,7 +11,7 @@ jobs:
   main:
     name: Step 1 - Assessment
     runs-on: ubuntu-latest
-    if: github.head_ref == 'hello-world'
+    if: github.head_ref == 'add-hello'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
